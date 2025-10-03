@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Face Recognition Attendance</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8;
+            background-image: url('images.png');
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            background-attachment: fixed;
+        }
+        .container-bg {
+            background-color: #ffffff;
+            border-radius: 1.5rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            padding: 2rem;
+        }
+        #video-container {
+            position: relative;
+            width: 100%;
+            height: auto;
+            border-radius: 0.75rem;
+            overflow: hidden;
+        }
+        #video, #canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+        #video {
+            transform: scaleX(-1);
+        }
+        #photo-canvas {
+            display: none;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
+
+    <div class="container-bg w-full max-w-lg mx-auto">
+        <header class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-gray-800">Attendance System</h1>
+            <p class="mt-2 text-lg text-gray-500">Face Recognition Simulation</p>
+        </header>
+
+        <div id="student-attendance-section">
+            <main class="space-y-6">
+                <div id="check-in-section" class="flex flex-col items-center">
+                    <div id="video-container" class="w-full max-w-sm aspect-video bg-gray-200 mb-4 rounded-lg flex items-center justify-center">
+                        <video id="video" autoplay muted></video>
+                        <canvas id="canvas"></canvas>
+                        <div id="camera-status" class="text-gray-500 font-medium p-4">Camera loading...</div>
+                    </div>
+                    <input id="student-id-input" type="text" placeholder="Enter Student ID (e.g., S1001)" class="w-full max-w-sm px-4 py-3 rounded-lg border-2 border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 text-center text-lg">
+                    <div class="flex flex-col sm:flex-row gap-4 mt-4 w-full max-w-sm">
+                        <button id="camera-button" class="flex-1 px-6 py-3 rounded-lg bg-blue-600 text-white font-semibold shadow-md hover:bg-blue-700 transition duration-300 ease-in-out transform hover:scale-105">
+                            Start Camera
+                        </button>
+                        <button id="take-picture-button" class="flex-1 px-6 py-3 rounded-lg bg-green-600 text-white font-semibold shadow-md hover:bg-green-700 transition duration-300 ease-in-out transform hover:scale-105" disabled>
+                            Take Picture
+                        </button>
+                    </div>
+                </div>
+
+                <div id="message-box" class="mt-4 p-4 rounded-lg text-center font-medium hidden"></div>
+
+                <div id="picture-preview-section" class="space-y-4 hidden">
+                    <h2 class="text-2xl font-semibold text-gray-800 border-b-2 pb-2">Captured Picture</h2>
+                    <img id="captured-image" class="w-full rounded-lg shadow-lg" alt="Captured Picture">
+                    <canvas id="photo-canvas"></canvas>
+                </div>
+
+                <div class="space-y-4">
+                    <h2 class="text-2xl font-semibold text-gray-800 border-b-2 pb-2">Attendance Record</h2>
+                    <div id="attendance-list" class="space-y-2">
+
+                    </div>
+                </div>
+
+                <button id="lecturer-login-btn" class="w-full mt-6 px-6 py-3 rounded-lg bg-gray-200 text-gray-700 font-semibold shadow-md hover:bg-gray-300 transition duration-300 ease-in-out">
+                    <i class="fas fa-sign-in-alt mr-2"></i> Lecturer Login
+                </button>
+            </main>
+        </div>
+        <div id="lecturer-login-section" class="space-y-6 hidden">
+            <h2 class="text-3xl font-bold text-gray-800 text-center mb-6">Lecturer Login</h2>
+            <form id="login-form" class="space-y-4">
+                <div>
+                    <label for="lecturer-username" class="block text-sm font-medium text-gray-700 mb-1">Username (Email)</label>
+                    <input id="lecturer-username" type="text" placeholder="Enter Email (Lecturer)" required class="w-full px-4 py-3 rounded-lg border-2 border-gray-300 focus:outline-none focus:ring-2 focus:ring-purple-500 text-lg">
+                </div>
+                <div>
+                    <label for="lecturer-password" class="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                    <input id="lecturer-password" type="password" placeholder="Enter Password" required class="w-full px-4 py-3 rounded-lg border-2 border-gray-300 focus:outline-none focus:ring-2 focus:ring-purple-500 text-lg">
+                </div>
+                <div id="login-message" class="p-3 rounded-lg text-center font-medium hidden"></div>
+                <button type="submit" class="w-full px-6 py-3 rounded-lg bg-purple-600 text-white font-semibold shadow-md hover:bg-purple-700 transition duration-300 ease-in-out transform hover:scale-105">
+                    Log In
+                </button>
+            </form>
+            <button id="back-to-attendance-btn" class="w-full mt-4 px-6 py-3 rounded-lg bg-red-500 text-white font-semibold shadow-md hover:bg-red-600 transition duration-300 ease-in-out">
+                <i class="fas fa-arrow-left mr-2"></i> Back to Attendance
+            </button>
+        </div>
+        <footer class="mt-8 text-center text-gray-500 text-sm">
+            <p>&copy; 2025 Tech Titans Project. All rights reserved.</p>
+        </footer>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Existing DOM elements
+            const video = document.getElementById('video');
+            const canvas = document.getElementById('canvas');
+            const photoCanvas = document.getElementById('photo-canvas');
+            const cameraButton = document.getElementById('camera-button');
+            const takePictureButton = document.getElementById('take-picture-button');
+            const studentIdInput = document.getElementById('student-id-input');
+            const messageBox = document.getElementById('message-box');
+            const attendanceList = document.getElementById('attendance-list');
+            const cameraStatus = document.getElementById('camera-status');
+            const capturedImage = document.getElementById('captured-image');
+            const picturePreviewSection = document.getElementById('picture-preview-section');
+
+            // New Lecturer Login DOM elements
+            const studentAttendanceSection = document.getElementById('student-attendance-section');
+            const lecturerLoginSection = document.getElementById('lecturer-login-section');
+            const lecturerLoginBtn = document.getElementById('lecturer-login-btn');
+            const backToAttendanceBtn = document.getElementById('back-to-attendance-btn');
+            const loginForm = document.getElementById('login-form');
+            const lecturerUsernameInput = document.getElementById('lecturer-username');
+            const lecturerPasswordInput = document.getElementById('lecturer-password');
+            const loginMessage = document.getElementById('login-message');
+
+            const isIOS = /iP(ad|hone|od)/.test(navigator.userAgent);
+            if (isIOS) {
+                video.setAttribute('playsinline', '');
+                video.setAttribute('webkit-playsinline', '');
+            }
+
+            let stream = null;
+            // Use localStorage for persistence
+            let attendanceRecords = JSON.parse(localStorage.getItem('attendanceRecords')) || [];
+            let currentDetections = [];
+            
+            // This mock data is just for the student side. Lecturer data is in new2.html
+            const MOCK_STUDENTS = ['S1001', 'S1002', 'S1003','22118752'];
+
+            await faceapi.nets.tinyFaceDetector.loadFromUri('https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@0.22.2/weights');
+
+            function showMessage(text, type = 'success', element = messageBox) {
+                element.textContent = text;
+                element.classList.remove('hidden', 'bg-red-200', 'text-red-800', 'bg-green-200', 'text-green-800', 'bg-yellow-200', 'text-yellow-800');
+                if (type === 'success') {
+                    element.classList.add('bg-green-200', 'text-green-800');
+                } else if (type === 'error') {
+                    element.classList.add('bg-red-200', 'text-red-800');
+                } else if (type === 'info') {
+                    element.classList.add('bg-yellow-200', 'text-yellow-800');
+                }
+                setTimeout(() => {
+                    element.classList.add('hidden');
+                }, 3000);
+            }
+
+            function renderAttendance() {
+                attendanceList.innerHTML = '';
+                if (attendanceRecords.length === 0) {
+                    attendanceList.innerHTML = '<p class="text-gray-400 italic">No attendance records yet.</p>';
+                    return;
+                }
+                // Only show today's attendance
+                const today = new Date().toDateString();
+                const todaysRecords = attendanceRecords.filter(record => new Date(record.timestamp).toDateString() === today);
+
+                todaysRecords.forEach(record => {
+                    const recordItem = document.createElement('div');
+                    recordItem.className = 'flex justify-between items-center bg-gray-50 p-3 rounded-lg shadow-sm';
+                    const locationText = record.location ? `Lat: ${record.location.latitude.toFixed(4)}, Lon: ${record.location.longitude.toFixed(4)}` : 'Location not available (Manual)';
+                    recordItem.innerHTML = `
+                        <span class="text-gray-700 font-medium">ID: ${record.studentId}</span>
+                        <div class="text-right">
+                            <span class="text-gray-500 text-sm block">${new Date(record.timestamp).toLocaleTimeString()}</span>
+                            <span class="text-gray-400 text-xs italic">${locationText}</span>
+                        </div>
+                    `;
+                    attendanceList.appendChild(recordItem);
+                });
+            }
+
+            // MODIFIED: Simplified Check-in
+            function checkInStudent(studentId) {
+                const today = new Date().toDateString();
+                // Check if student has already checked in today
+                const alreadyCheckedIn = attendanceRecords.some(record => 
+                    record.studentId === studentId && new Date(record.timestamp).toDateString() === today
+                );
+
+                if (alreadyCheckedIn) {
+                    return showMessage(`Student ${studentId} already checked in today.`, 'info');
+                }
+
+                // Check if student ID is a mock enrolled student
+                if (!MOCK_STUDENTS.includes(studentId)) {
+                     return showMessage(`Student ID ${studentId} not recognized.`, 'error');
+                }
+
+                const newRecord = {
+                    studentId: studentId,
+                    timestamp: new Date().toISOString(),
+                    // Manually setting mock location data
+                    location: { latitude: 34.0522, longitude: -118.2437 } // Mock Los Angeles Coordinates
+                };
+                
+                attendanceRecords.push(newRecord);
+                localStorage.setItem('attendanceRecords', JSON.stringify(attendanceRecords));
+                renderAttendance();
+                showMessage(`Check-in successful for ${studentId}!`);
+            }
+            
+            // ... (stopCamera function remains mostly the same)
+            async function stopCamera() {
+                if (stream) {
+                    stream.getTracks().forEach(track => track.stop());
+                    stream = null;
+                    video.srcObject = null;
+                    cameraButton.textContent = "Start Camera";
+                    cameraButton.disabled = false;
+                    takePictureButton.disabled = true;
+                    cameraStatus.classList.remove('hidden');
+                    cameraStatus.textContent = "Camera stopped.";
+                    canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+                }
+            }
+
+
+            async function startCamera() {
+                if (stream) { return; }
+                
+                const studentId = studentIdInput.value.trim();
+                if (!studentId || !MOCK_STUDENTS.includes(studentId)) {
+                    return showMessage(`Please enter a valid mock Student ID (${MOCK_STUDENTS.join(', ')})`, 'error');
+                }
+
+                try {
+                    stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                    video.srcObject = stream;
+                    cameraButton.textContent = "Camera On (Checking)";
+                    cameraButton.disabled = true;
+                    takePictureButton.disabled = false;
+
+                    video.addEventListener('loadedmetadata', () => {
+                        const displaySize = { width: video.videoWidth, height: video.videoHeight };
+                        faceapi.matchDimensions(canvas, displaySize);
+                        cameraStatus.classList.add('hidden');
+
+                        const detectionInterval = setInterval(async () => {
+                            if (!stream) { 
+                                clearInterval(detectionInterval);
+                                return;
+                            }
+                            const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions());
+                            currentDetections = faceapi.resizeResults(detections, displaySize);
+                            canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+                            faceapi.draw.drawDetections(canvas, currentDetections);
+
+                            if (currentDetections.length > 0) {
+                                // Face detected - perform manual check-in
+                                checkInStudent(studentId);
+                                
+                                // Stop camera after successful detection/check-in
+                                clearInterval(detectionInterval);
+                                stopCamera();
+                            }
+                        }, 1000);
+                    }, { once: true });
+                } catch (err) {
+                    console.error("Error accessing the camera:", err);
+                    cameraStatus.textContent = "Error: Camera access denied or not available.";
+                }
+            }
+
+            // ... (takePicture function remains the same)
+            function takePicture() {
+                if (!stream || video.paused || video.ended) {
+                    showMessage("Camera not active to take a picture.", "error");
+                    return;
+                }
+
+                const displaySize = { width: video.videoWidth, height: video.videoHeight };
+
+                photoCanvas.width = displaySize.width;
+                photoCanvas.height = displaySize.height;
+                const context = photoCanvas.getContext('2d');
+
+                context.drawImage(video, 0, 0, photoCanvas.width, photoCanvas.height);
+
+                if (currentDetections.length > 0) {
+                     faceapi.matchDimensions(photoCanvas, displaySize);
+                     faceapi.draw.drawDetections(photoCanvas, currentDetections);
+                }
+
+                const imageDataUrl = photoCanvas.toDataURL('image/png');
+                capturedImage.src = imageDataUrl;
+                picturePreviewSection.classList.remove('hidden');
+                showMessage("Picture taken!", "success");
+            }
+
+            // --- Event Listeners for existing functionality ---
+            cameraButton.addEventListener('click', startCamera);
+            takePictureButton.addEventListener('click', takePicture);
+
+            // --- New Event Listeners for Lecturer Login ---
+
+            // Switch to Lecturer Login section
+            lecturerLoginBtn.addEventListener('click', () => {
+                studentAttendanceSection.classList.add('hidden');
+                lecturerLoginSection.classList.remove('hidden');
+                stopCamera(); 
+            });
+
+            // Switch back to Student Attendance section
+            backToAttendanceBtn.addEventListener('click', () => {
+                lecturerLoginSection.classList.add('hidden');
+                studentAttendanceSection.classList.remove('hidden');
+                loginMessage.classList.add('hidden');
+                lecturerUsernameInput.value = '';
+                lecturerPasswordInput.value = '';
+                renderAttendance(); // Refresh attendance when coming back
+            });
+
+            // Handle Lecturer Login form submission (MANUAL)
+            loginForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const username = lecturerUsernameInput.value.trim();
+                const password = lecturerPasswordInput.value.trim();
+
+                // 🔑 HARDCODED LOGIN CREDENTIALS 🔑
+                const DEFAULT_USERNAME = 'ntuthukolwandisa@gmail.com'; 
+                const DEFAULT_PASSWORD = 'Noluthando@1'; 
+
+                if (username === DEFAULT_USERNAME && password === DEFAULT_PASSWORD) {
+                    showMessage('Login successful! Redirecting to dashboard...', 'success', loginMessage);
+                    // Store credentials in sessionStorage for new2.html to use
+                    sessionStorage.setItem('lecturerEmail', DEFAULT_USERNAME);
+                    sessionStorage.setItem('lecturerName', 'Ntuthuko Lwandisa');
+
+                    setTimeout(() => {
+                        window.location.href = 'lecture.html'; 
+                    }, 500);
+
+                } else {
+                    showMessage('Invalid username or password.', 'error', loginMessage);
+                }
+            });
+
+            // Initial render
+            renderAttendance();
+        });
+    </script>
+</body>
+</html>
