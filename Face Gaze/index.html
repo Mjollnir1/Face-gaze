@@ -120,7 +120,6 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', async () => {
-            // Existing DOM elements
             const video = document.getElementById('video');
             const canvas = document.getElementById('canvas');
             const photoCanvas = document.getElementById('photo-canvas');
@@ -133,7 +132,6 @@
             const capturedImage = document.getElementById('captured-image');
             const picturePreviewSection = document.getElementById('picture-preview-section');
 
-            // New Lecturer Login DOM elements
             const studentAttendanceSection = document.getElementById('student-attendance-section');
             const lecturerLoginSection = document.getElementById('lecturer-login-section');
             const lecturerLoginBtn = document.getElementById('lecturer-login-btn');
@@ -150,11 +148,8 @@
             }
 
             let stream = null;
-            // Use localStorage for persistence
             let attendanceRecords = JSON.parse(localStorage.getItem('attendanceRecords')) || [];
             let currentDetections = [];
-            
-            // This mock data is just for the student side. Lecturer data is in new2.html
             const MOCK_STUDENTS = ['S1001', 'S1002', 'S1003','22118752'];
 
             await faceapi.nets.tinyFaceDetector.loadFromUri('https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@0.22.2/weights');
@@ -180,29 +175,35 @@
                     attendanceList.innerHTML = '<p class="text-gray-400 italic">No attendance records yet.</p>';
                     return;
                 }
-                // Only show today's attendance
                 const today = new Date().toDateString();
                 const todaysRecords = attendanceRecords.filter(record => new Date(record.timestamp).toDateString() === today);
 
                 todaysRecords.forEach(record => {
                     const recordItem = document.createElement('div');
-                    recordItem.className = 'flex justify-between items-center bg-gray-50 p-3 rounded-lg shadow-sm';
+                    recordItem.className = 'flex items-center gap-4 bg-gray-50 p-3 rounded-lg shadow-sm';
                     const locationText = record.location ? `Lat: ${record.location.latitude.toFixed(4)}, Lon: ${record.location.longitude.toFixed(4)}` : 'Location not available (Manual)';
+                    
+                    // Add check-in image if available
+                    const imageHtml = record.imageDataUrl ? `<img src="${record.imageDataUrl}" class="w-16 h-16 object-cover rounded-md" alt="Check-in photo">` : '';
+                    
                     recordItem.innerHTML = `
-                        <span class="text-gray-700 font-medium">ID: ${record.studentId}</span>
-                        <div class="text-right">
-                            <span class="text-gray-500 text-sm block">${new Date(record.timestamp).toLocaleTimeString()}</span>
-                            <span class="text-gray-400 text-xs italic">${locationText}</span>
+                        <div class="flex items-center flex-1 gap-2">
+                            ${imageHtml}
+                            <div class="flex flex-col">
+                                <span class="text-gray-700 font-medium">ID: ${record.studentId}</span>
+                                <div class="text-right">
+                                    <span class="text-gray-500 text-sm block">${new Date(record.timestamp).toLocaleTimeString()}</span>
+                                    <span class="text-gray-400 text-xs italic">${locationText}</span>
+                                </div>
+                            </div>
                         </div>
                     `;
                     attendanceList.appendChild(recordItem);
                 });
             }
 
-            // MODIFIED: Simplified Check-in
-            function checkInStudent(studentId) {
+            async function checkInStudent(studentId) {
                 const today = new Date().toDateString();
-                // Check if student has already checked in today
                 const alreadyCheckedIn = attendanceRecords.some(record => 
                     record.studentId === studentId && new Date(record.timestamp).toDateString() === today
                 );
@@ -211,25 +212,68 @@
                     return showMessage(`Student ${studentId} already checked in today.`, 'info');
                 }
 
-                // Check if student ID is a mock enrolled student
                 if (!MOCK_STUDENTS.includes(studentId)) {
                      return showMessage(`Student ID ${studentId} not recognized.`, 'error');
                 }
 
-                const newRecord = {
-                    studentId: studentId,
-                    timestamp: new Date().toISOString(),
-                    // Manually setting mock location data
-                    location: { latitude: 34.0522, longitude: -118.2437 } // Mock Los Angeles Coordinates
-                };
-                
-                attendanceRecords.push(newRecord);
-                localStorage.setItem('attendanceRecords', JSON.stringify(attendanceRecords));
-                renderAttendance();
-                showMessage(`Check-in successful for ${studentId}!`);
+                try {
+                    const location = await getCurrentLocation();
+                    
+                    const response = await fetch('/api/attendance', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            studentId: studentId,
+                            lectureId: 'LECT101',
+                            imageDataUrl: capturedImageDataUrl,
+                            latitude: location.latitude,
+                            longitude: location.longitude
+                        })
+                    });
+
+                    if (response.ok) {
+                        const newRecord = {
+                            studentId: studentId,
+                            timestamp: new Date().toISOString(),
+                            location: location
+                        };
+                        
+                        attendanceRecords.push(newRecord);
+                        localStorage.setItem('attendanceRecords', JSON.stringify(attendanceRecords));
+                        renderAttendance();
+                        showMessage(`Check-in successful for ${studentId}!`);
+                    } else {
+                        const error = await response.json();
+                        showMessage(`Error: ${error.message}`, 'error');
+                    }
+                } catch (error) {
+                    console.error('Check-in error:', error);
+                    showMessage('Failed to check in. Please try again.', 'error');
+                }
+            }
+
+            function getCurrentLocation() {
+                return new Promise((resolve) => {
+                    if (navigator.geolocation) {
+                        navigator.geolocation.getCurrentPosition(
+                            (position) => {
+                                resolve({
+                                    latitude: position.coords.latitude,
+                                    longitude: position.coords.longitude
+                                });
+                            },
+                            () => {
+                                resolve({ latitude: 34.0522, longitude: -118.2437 });
+                            }
+                        );
+                    } else {
+                        resolve({ latitude: 34.0522, longitude: -118.2437 });
+                    }
+                });
             }
             
-            // ... (stopCamera function remains mostly the same)
             async function stopCamera() {
                 if (stream) {
                     stream.getTracks().forEach(track => track.stop());
@@ -291,7 +335,6 @@
                 }
             }
 
-            // ... (takePicture function remains the same)
             function takePicture() {
                 if (!stream || video.paused || video.ended) {
                     showMessage("Camera not active to take a picture.", "error");
@@ -317,42 +360,34 @@
                 showMessage("Picture taken!", "success");
             }
 
-            // --- Event Listeners for existing functionality ---
             cameraButton.addEventListener('click', startCamera);
             takePictureButton.addEventListener('click', takePicture);
 
-            // --- New Event Listeners for Lecturer Login ---
-
-            // Switch to Lecturer Login section
             lecturerLoginBtn.addEventListener('click', () => {
                 studentAttendanceSection.classList.add('hidden');
                 lecturerLoginSection.classList.remove('hidden');
                 stopCamera(); 
             });
 
-            // Switch back to Student Attendance section
             backToAttendanceBtn.addEventListener('click', () => {
                 lecturerLoginSection.classList.add('hidden');
                 studentAttendanceSection.classList.remove('hidden');
                 loginMessage.classList.add('hidden');
                 lecturerUsernameInput.value = '';
                 lecturerPasswordInput.value = '';
-                renderAttendance(); // Refresh attendance when coming back
+                renderAttendance();
             });
 
-            // Handle Lecturer Login form submission (MANUAL)
             loginForm.addEventListener('submit', (e) => {
                 e.preventDefault();
                 const username = lecturerUsernameInput.value.trim();
                 const password = lecturerPasswordInput.value.trim();
 
-                // 🔑 HARDCODED LOGIN CREDENTIALS 🔑
                 const DEFAULT_USERNAME = 'ntuthukolwandisa@gmail.com'; 
                 const DEFAULT_PASSWORD = 'Noluthando@1'; 
 
                 if (username === DEFAULT_USERNAME && password === DEFAULT_PASSWORD) {
                     showMessage('Login successful! Redirecting to dashboard...', 'success', loginMessage);
-                    // Store credentials in sessionStorage for new2.html to use
                     sessionStorage.setItem('lecturerEmail', DEFAULT_USERNAME);
                     sessionStorage.setItem('lecturerName', 'Ntuthuko Lwandisa');
 
@@ -365,7 +400,6 @@
                 }
             });
 
-            // Initial render
             renderAttendance();
         });
     </script>
